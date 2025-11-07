@@ -5,10 +5,11 @@ import { calculatePKCECodeChallenge, randomPKCECodeVerifier, randomState } from 
 import { google } from './google';
 
 import type { AuthProvider } from './provider';
-import { IdTokenUserSchema, TokensSchema } from './auth.schema';
+import { IdTokenUserSchema, OauthTokensSchema } from './auth.schema';
 import { generateToken } from './auth.service';
 
 import { putUser } from '../user/user.service';
+import { toPublicUser } from '../user/user.mapper';
 
 const Providers: Record<string, AuthProvider> = {
   google,
@@ -60,7 +61,7 @@ auth.get('/:provider_name/callback', async (c) => {
   if (!currentUrl.searchParams.get('code') || !state) return c.text('bad request', 400);
 
   const tokens = await provider.authorizationCodeGrant(currentUrl, verifier, state);
-  const parsedTokens = TokensSchema.safeParse(tokens);
+  const parsedTokens = OauthTokensSchema.safeParse(tokens);
   if (!parsedTokens.success) return c.text('Invalid tokens', 400);
 
   const idToken = tokens.claims();
@@ -88,7 +89,7 @@ auth.get('/:provider_name/callback', async (c) => {
   );
   const { accessToken, refreshToken } = await generateToken(user);
 
-  return c.json({ user, accessToken, refreshToken });
+  return c.json({ user: toPublicUser(user), accessToken, refreshToken });
 });
 
 export { auth };

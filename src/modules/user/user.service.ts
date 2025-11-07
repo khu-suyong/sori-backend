@@ -1,13 +1,15 @@
 import type { Prisma, PrismaClient } from '@prisma/client'
 import type { CreatableAccount, CreatableUser } from './user.schema';
 
-type HasUserOptions = {
+type FetchIdOptions = { email: string; } | { id: string; };
+type FetchUserOptions = {
   withProvider?: string;
 };
-export const fetchUser = async (db: Prisma.TransactionClient, email: string, { withProvider }: HasUserOptions = {}) => {
+export const fetchUser = async (db: Prisma.TransactionClient, input: FetchIdOptions, { withProvider }: FetchUserOptions = {}) => {
   const user = await db.user.findUnique({
     where: {
-      email,
+      id: 'id' in input ? input.id : undefined,
+      email: 'email' in input ? input.email : undefined,
       accounts: withProvider ? {
         some: {
           provider: withProvider
@@ -21,11 +23,12 @@ export const fetchUser = async (db: Prisma.TransactionClient, email: string, { w
 
 export const putUser = async (db: PrismaClient, input: CreatableUser, account: CreatableAccount | null = null) => {
   return db.$transaction(async (tx) => {
-    const user = await fetchUser(tx, input.email, { withProvider: account?.provider });
+    const id = { email: input.email };
+    const user = await fetchUser(tx, id, { withProvider: account?.provider });
     if (user) return user;
 
     if (account) {
-      const userExists = await fetchUser(tx, input.email);
+      const userExists = await fetchUser(tx, id);
 
       if (userExists) {
         const user = await tx.user.update({
