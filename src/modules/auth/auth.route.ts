@@ -10,6 +10,7 @@ import { generateToken } from './auth.service';
 
 import { putUser } from '../user/user.service';
 import { toPublicUser } from '../user/user.mapper';
+import { jsonError } from '../../lib/exception';
 
 const Providers: Record<string, AuthProvider> = {
   google,
@@ -25,7 +26,12 @@ auth.get('/:provider_name', async (c) => {
   const { provider_name } = c.req.param();
 
   const provider = Providers[provider_name];
-  if (!provider) return c.text('Unsupported provider', 400);
+  if (!provider) {
+    throw jsonError(400, {
+      code: 'unsupported_provider',
+      message: '지원하지 않는 인증 제공자입니다.',
+    });
+  }
 
   const verifier = randomPKCECodeVerifier()
   const challenge = await calculatePKCECodeChallenge(verifier)
@@ -52,23 +58,48 @@ auth.get('/:provider_name/callback', async (c) => {
   const { provider_name } = c.req.param();
 
   const provider = Providers[provider_name];
-  if (!provider) return c.text('Unsupported provider', 400);
+  if (!provider) {
+    throw jsonError(400, {
+      code: 'unsupported_provider',
+      message: '지원하지 않는 인증 제공자입니다.',
+    });
+  }
 
   const currentUrl = new URL(c.req.url);
 
   const state = getCookie(c, 'oauth_state') ?? '';
   const verifier = getCookie(c, 'oauth_code_verifier') ?? '';
-  if (!currentUrl.searchParams.get('code') || !state) return c.text('bad request', 400);
+  if (!currentUrl.searchParams.get('code') || !state) {
+    throw jsonError(400, {
+      code: 'invalid_oauth_request',
+      message: '잘못된 요청입니다.',
+    });
+  }
 
   const tokens = await provider.authorizationCodeGrant(currentUrl, verifier, state);
-  const parsedTokens = OauthTokensSchema.safeParse(tokens);
-  if (!parsedTokens.success) return c.text('Invalid tokens', 400);
+  const parsedTokens = await OauthTokensSchema.spa(tokens);
+  if (!parsedTokens.success) {
+    throw jsonError(500, {
+      code: 'invalid_oauth_tokens',
+      message: '인증 제공자로 부터 잘못된 토큰 응답을 받았습니다.',
+    });
+  }
 
   const idToken = tokens.claims();
-  if (!idToken) return c.text('Failed to get id token', 500);
+  if (!idToken) {
+    throw jsonError(500, {
+      code: 'missing_id_token',
+      message: 'ID 토큰이 존재하지 않습니다.',
+    });
+  }
 
-  const parsedIdToken = IdTokenUserSchema.safeParse(idToken);
-  if (!parsedIdToken.success) return c.text('Invalid id token', 400);
+  const parsedIdToken = await IdTokenUserSchema.spa(idToken);
+  if (!parsedIdToken.success) {
+    throw jsonError(500, {
+      code: 'invalid_id_token',
+      message: '잘못된 ID 토큰입니다.',
+    });
+  }
   const userInput = parsedIdToken.data;
 
   const user = await putUser(

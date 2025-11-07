@@ -4,6 +4,7 @@ import { fetchUser } from './user.service';
 import { toPublicUser } from './user.mapper';
 
 import { jwt } from '../../lib/jwt';
+import { jsonError } from '../../lib/exception';
 
 const user = new Hono();
 user.use('*', jwt());
@@ -13,7 +14,10 @@ user.get('/', async (c) => {
 
   const user = await fetchUser(c.var.prisma, { id: userId });
   if (!user) {
-    return c.json({ message: 'User not found' }, 404);
+    throw jsonError(404, {
+      code: 'user_not_found',
+      message: '사용자를 찾을 수 없습니다.',
+    });
   }
 
   return c.json(toPublicUser(user));

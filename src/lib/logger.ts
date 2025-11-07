@@ -20,6 +20,14 @@ export const logger = () => {
   const innerMiddleware = createMiddleware(async (c, next) => {
     c.set('log', log);
     await next();
+
+    if (c.error) {
+      if (c.res.status === 500) {
+        log.error({ err: c.error });
+      } else {
+        log.warn({ err: c.error });
+      }
+    }
   });
 
   return every(

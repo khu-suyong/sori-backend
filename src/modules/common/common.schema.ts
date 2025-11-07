@@ -10,3 +10,9 @@ export const Entity = BaseEntity.extend({
   createdAt: Timestamp,
   updatedAt: Timestamp.nullable(),
 });
+
+export type ExceptionBody = z.infer<typeof ExceptionBodySchema>;
+export const ExceptionBodySchema = z.object({
+  code: z.string(),
+  message: z.string().optional(),
+});
