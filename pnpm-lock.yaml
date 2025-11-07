@@ -54,6 +54,9 @@ importers:
       vitest:
         specifier: 4.0.7
         version: 4.0.7(@types/node@20.19.24)(jiti@2.6.1)(tsx@4.20.6)
+      vitest-mock-extended:
+        specifier: 3.1.0
+        version: 3.1.0(typescript@5.9.3)(vitest@4.0.7(@types/node@20.19.24)(jiti@2.6.1)(tsx@4.20.6))
 
 packages:
 
@@ -777,6 +780,14 @@ packages:
     resolution: {integrity: sha512-PSkbLUoxOFRzJYjjxHJt9xro7D+iilgMX/C9lawzVuYiIdcihh9DXmVibBe8lmcFrRi/VzlPjBxbN7rH24q8/Q==}
     engines: {node: '>=14.0.0'}
 
+  ts-essentials@10.1.1:
+    resolution: {integrity: sha512-4aTB7KLHKmUvkjNj8V+EdnmuVTiECzn3K+zIbRthumvHu+j44x3w63xpfs0JL3NGIzGXqoQ7AV591xHO+XrOTw==}
+    peerDependencies:
+      typescript: '>=4.5.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   tsx@4.20.6:
     resolution: {integrity: sha512-ytQKuwgmrrkDTFP4LjR0ToE2nqgy886GpvRSpU0JAnrdBYppuY5rLkRUYPU1yCryb24SsKBTL/hlDQAEFVwtZg==}
     engines: {node: '>=18.0.0'}
@@ -829,6 +840,12 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  vitest-mock-extended@3.1.0:
+    resolution: {integrity: sha512-vCM0VkuocOUBwwqwV7JB7YStw07pqeKvEIrZnR8l3PtwYi6rAAJAyJACeC1UYNfbQWi85nz7EdiXWBFI5hll2g==}
+    peerDependencies:
+      typescript: 3.x || 4.x || 5.x
+      vitest: '>=3.0.0'
 
   vitest@4.0.7:
     resolution: {integrity: sha512-xQroKAadK503CrmbzCISvQUjeuvEZzv6U0wlnlVFOi5i3gnzfH4onyQ29f3lzpe0FresAiTAd3aqK0Bi/jLI8w==}
@@ -1483,6 +1500,10 @@ snapshots:
 
   tinyrainbow@3.0.3: {}
 
+  ts-essentials@10.1.1(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
+
   tsx@4.20.6:
     dependencies:
       esbuild: 0.25.12
@@ -1507,6 +1528,12 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.6.1
       tsx: 4.20.6
+
+  vitest-mock-extended@3.1.0(typescript@5.9.3)(vitest@4.0.7(@types/node@20.19.24)(jiti@2.6.1)(tsx@4.20.6)):
+    dependencies:
+      ts-essentials: 10.1.1(typescript@5.9.3)
+      typescript: 5.9.3
+      vitest: 4.0.7(@types/node@20.19.24)(jiti@2.6.1)(tsx@4.20.6)
 
   vitest@4.0.7(@types/node@20.19.24)(jiti@2.6.1)(tsx@4.20.6):
     dependencies:
