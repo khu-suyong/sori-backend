@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client'
-import type { CreatableAccount, CreatableUser } from './user.schema';
+import type { CreatableAccount, CreatableUser, EditableUser } from './user.schema';
 
 type FetchIdOptions = { email: string; } | { id: string; };
 type FetchUserOptions = {
@@ -19,6 +19,26 @@ export const fetchUser = async (db: Prisma.TransactionClient, input: FetchIdOpti
   });
 
   return user;
+};
+
+export const updateUser = async (db: PrismaClient, id: FetchIdOptions, input: EditableUser) => {
+  return db.$transaction(async (tx) => {
+    const target = await fetchUser(tx, id);
+    if (!target) return null;
+
+    const user = await tx.user.update({
+      where: {
+        id: target.id,
+      },
+      data: {
+        name: input.name,
+        email: input.email,
+        image: input.image,
+      },
+    });
+
+    return user;
+  });
 };
 
 export const putUser = async (db: PrismaClient, input: CreatableUser, account: CreatableAccount | null = null) => {

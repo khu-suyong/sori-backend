@@ -1,4 +1,4 @@
-import z from 'zod';
+import { z } from '@hono/zod-openapi';
 
 import { BaseEntity, Entity } from '../common/common.schema';
 
@@ -42,6 +42,11 @@ export const CreatableUserSchema = z.object({
   image: z.url().nullable(),
 });
 
+export type EditableUser = z.infer<typeof EditableUserSchema>;
+export const EditableUserSchema = CreatableUserSchema.omit({
+  email: true,
+}).partial();
+
 //
 
 export type PublicUser = z.infer<typeof PublicUserSchema>;
@@ -50,4 +55,4 @@ export const PublicUserSchema = UserSchema.pick({
   email: true,
   name: true,
   image: true,
-});
+}).openapi('User');

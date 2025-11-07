@@ -14,7 +14,12 @@ export const jsonError = (status: ContentfulStatusCode, body: JsonErrorOptions) 
       code: body.code,
       message: body.message,
     } satisfies ExceptionBody,
-    { status },
+    {
+      status,
+      headers: {
+        'content-type': 'application/json',
+      },
+    },
   );
 
   return new HTTPException(

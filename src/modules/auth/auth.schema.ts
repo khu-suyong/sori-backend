@@ -1,6 +1,7 @@
-import z from 'zod';
+import { z } from '@hono/zod-openapi';
 
 import { Env } from '../../lib/config';
+import { PublicUserSchema } from '../user/user.schema';
 
 export const OauthTokensSchema = z.object({
   access_token: z.string(),
@@ -41,3 +42,14 @@ export const RefreshTokenSchema = z.object({
 
 export type Token = z.infer<typeof TokenSchema>;
 export const TokenSchema = z.discriminatedUnion('aud', [AccessTokenSchema, RefreshTokenSchema]);
+
+//
+
+export const PublicTokenSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+}).openapi('Token');
+
+export const PublicTokenWithUserSchema = PublicTokenSchema.extend({
+  user: PublicUserSchema,
+}).openapi('TokenWithUser');

@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
+    "@hono/swagger-ui": "0.5.2",
+    "@hono/zod-openapi": "1.1.4",
     "@prisma/client": "6.19.0",
     "@prisma/extension-accelerate": "2.0.2",
     "dotenv": "17.2.3",
