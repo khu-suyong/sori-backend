@@ -1,5 +1,7 @@
 import pino from 'pino';
 import { logger as honoLogger } from 'hono/logger';
+import { createMiddleware } from 'hono/factory';
+import { every } from 'hono/combine';
 
 import { Env } from './config';
 
@@ -15,5 +17,19 @@ export const logger = () => {
     Env.IS_PRODUCTION ? undefined : transport,
   );
 
-  return honoLogger((...messages) => log.info({ msg: messages.join(' ') }));
+  const innerMiddleware = createMiddleware(async (c, next) => {
+    c.set('log', log);
+    await next();
+  });
+
+  return every(
+    innerMiddleware,
+    honoLogger((...messages) => log.info({ msg: messages.join(' ') })),
+  );
 };
+
+declare module 'hono' {
+  interface ContextVariableMap {
+    log: pino.Logger;
+  }
+}

@@ -1,0 +1,76 @@
+import type { Prisma, PrismaClient } from '@prisma/client'
+import type { CreatableAccount, CreatableUser } from './user.schema';
+
+type HasUserOptions = {
+  withProvider?: string;
+};
+export const fetchUser = async (db: Prisma.TransactionClient, email: string, { withProvider }: HasUserOptions = {}) => {
+  const user = await db.user.findUnique({
+    where: {
+      email,
+      accounts: withProvider ? {
+        some: {
+          provider: withProvider
+        },
+      } : undefined,
+    },
+  });
+
+  return user;
+};
+
+export const putUser = async (db: PrismaClient, input: CreatableUser, account: CreatableAccount | null = null) => {
+  return db.$transaction(async (tx) => {
+    const user = await fetchUser(tx, input.email, { withProvider: account?.provider });
+    if (user) return user;
+
+    if (account) {
+      const userExists = await fetchUser(tx, input.email);
+
+      if (userExists) {
+        const user = await tx.user.update({
+          where: { email: input.email },
+          data: {
+            updatedAt: new Date(),
+            accounts: {
+              create: [
+                {
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                  accessToken: account.accessToken,
+                  refreshToken: account.refreshToken,
+                  expiresAt: account.expiresAt,
+                  scope: account.scope,
+                },
+              ],
+            },
+          },
+        });
+
+        return user;
+      }
+    }
+
+    const result = await tx.user.create({
+      data: {
+        name: input.name,
+        email: input.email,
+        image: input.image,
+        accounts: account ? {
+          create: [
+            {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              accessToken: account.accessToken,
+              refreshToken: account.refreshToken,
+              expiresAt: account.expiresAt,
+              scope: account.scope,
+            },
+          ],
+        } : undefined,
+      },
+    });
+
+    return result;
+  });
+};

@@ -18,7 +18,8 @@
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineWidth": 120
+    "lineWidth": 120,
+    "expand": "always"
   },
   "linter": {
     "enabled": true,

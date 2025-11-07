@@ -1,4 +1,6 @@
 import { serve } from '@hono/node-server';
+import 'dotenv/config';
+import './lib/config'; // config checks
 
 import { app } from './app';
 

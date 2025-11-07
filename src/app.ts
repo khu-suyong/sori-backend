@@ -4,12 +4,13 @@ import { secureHeaders } from 'hono/secure-headers';
 import { requestId } from 'hono/request-id';
 
 import { logger } from './lib/logger';
+import { db } from './lib/db';
 
-import { router } from './route/v1';
+import { router } from './route';
 
 const app = new Hono();
 
-app.use('*', requestId(), logger(), cors(), secureHeaders());
-app.route('/api/v1', router());
+app.use('*', requestId(), logger(), cors(), secureHeaders(), db());
+app.route('/api', router());
 
 export { app };
