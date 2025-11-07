@@ -1,17 +1,15 @@
 import { sign, verify } from 'hono/jwt';
 
-import type { PublicUser } from '../user/user.schema';
-
 import { Env } from '../../lib/config';
-import { AccessTokenSchema, RefreshTokenSchema, type AccessToken, type RefreshToken, type Token } from './auth.schema';
+import { AccessTokenSchema, RefreshTokenSchema, type AccessToken, type RefreshToken } from './auth.schema';
 
-export const generateToken = async (user: PublicUser) => {
+export const generateToken = async (userId: string) => {
   const [accessToken, refreshToken] = await Promise.all([
     sign(
       {
         iss: Env.APP_URL,
         aud: 'api',
-        sub: user.id,
+        sub: userId,
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour
       } satisfies AccessToken,
@@ -21,7 +19,7 @@ export const generateToken = async (user: PublicUser) => {
       {
         iss: Env.APP_URL,
         aud: 'auth',
-        sub: user.id,
+        sub: userId,
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30, // 30 days
       } satisfies RefreshToken,

@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory';
+import { every } from 'hono/combine';
 
 import { jsonError } from './exception';
 
@@ -37,7 +38,11 @@ const ErrorMap: Record<string, ExceptionBody> = {
 };
 
 const regex = /^Bearer\s+(.+)$/i;
-export const jwt = () => createMiddleware(async (c, next) => {
+export const jwtParser = () => createMiddleware<{
+  Variables: {
+    token: string;
+  }
+}>(async (c, next) => {
   const header = c.req.header('Authorization');
   if (!header) {
     throw jsonError(401, {
@@ -55,6 +60,18 @@ export const jwt = () => createMiddleware(async (c, next) => {
   }
 
   const token = match[1];
+  c.set('token', token);
+
+  return next();
+});
+export const verifyJwt = () => createMiddleware<{
+  Variables: {
+    token: string;
+    userId: string;
+  }
+}>(async (c, next) => {
+  const token = c.get('token');
+
   try {
     const payload = await verifyToken(token);
     const userId = payload.sub;
@@ -77,8 +94,14 @@ export const jwt = () => createMiddleware(async (c, next) => {
   return next();
 });
 
+export const jwt = () => every(
+  jwtParser(),
+  verifyJwt(),
+);
+
 declare module 'hono' {
   interface ContextVariableMap {
+    token: string;
     userId: string;
   }
 }

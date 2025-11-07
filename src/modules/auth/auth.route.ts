@@ -6,11 +6,12 @@ import { google } from './google';
 
 import type { AuthProvider } from './provider';
 import { IdTokenUserSchema, OauthTokensSchema } from './auth.schema';
-import { generateToken } from './auth.service';
+import { generateToken, verifyToken } from './auth.service';
 
 import { putUser } from '../user/user.service';
 import { toPublicUser } from '../user/user.mapper';
 import { jsonError } from '../../lib/exception';
+import { jwtParser } from '../../lib/jwt';
 
 const Providers: Record<string, AuthProvider> = {
   google,
@@ -18,8 +19,26 @@ const Providers: Record<string, AuthProvider> = {
 
 const auth = new Hono();
 
-auth.post('/refresh', async (c) => {
-  return c.text('Not implemented', 501);
+auth.post('/refresh', jwtParser(), async (c) => {
+  const token = c.get('token');
+
+  const result = await verifyToken(token, 'auth').catch((err) => err);
+  if (result instanceof Error) {
+    throw jsonError(401, {
+      code: 'invalid_token',
+      message: '유효하지 않은 토큰입니다. 헤더에 access token이 아닌 refresh token이 포함되어야 합니다.',
+      cause: result,
+    });
+  }
+
+  const { accessToken, refreshToken } = await generateToken(result.sub);
+
+  return c.json({ accessToken, refreshToken });
+});
+auth.get('/refresh', async () => {
+  throw jsonError(405, {
+    code: 'method_not_allowed',
+  });
 });
 
 auth.get('/:provider_name', async (c) => {
@@ -118,7 +137,7 @@ auth.get('/:provider_name/callback', async (c) => {
       scope: parsedTokens.data.scope,
     },
   );
-  const { accessToken, refreshToken } = await generateToken(user);
+  const { accessToken, refreshToken } = await generateToken(user.id);
 
   return c.json({ user: toPublicUser(user), accessToken, refreshToken });
 });
