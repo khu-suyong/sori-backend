@@ -23,7 +23,7 @@ app.doc('/docs', {
     title: 'Sori Backend',
   },
   tags: [
-    { name: 'Users', description: '사용자 도메인' },
+    { name: 'User', description: '사용자 도메인' },
     { name: 'Auth', description: '인증/인가' },
     { name: 'Workspace', description: '워크스페이스' },
     { name: 'Server', description: '외부 서버' },

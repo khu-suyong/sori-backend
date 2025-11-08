@@ -15,7 +15,7 @@ const getUserRoute = createRoute({
   method: 'get',
   path: '/',
   description: '인증된 유저의 정보를 반환합니다.',
-  tags: ['Users'],
+  tags: ['User'],
   summary: '유저 조회',
   responses: {
     200: {
@@ -67,7 +67,7 @@ const updateUserRoute = createRoute({
   method: 'patch',
   path: '/',
   description: '인증된 유저의 수정 가능한 필드를 업데이트합니다.',
-  tags: ['Users'],
+  tags: ['User'],
   summary: '유저 정보 수정',
   request: {
     body: {

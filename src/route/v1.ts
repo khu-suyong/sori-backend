@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 
 import { auth } from '../modules/auth/auth.route';
 import { user } from '../modules/user/user.route';
+import { workspace } from '../modules/workspace/workspace.route';
 
 export const router = () => {
   const router = new OpenAPIHono();
@@ -9,6 +10,7 @@ export const router = () => {
   router.get('/health', c => c.json({ ok: true }));
   router.route('/auth', auth);
   router.route('/user', user);
+  router.route('/workspace', workspace);
 
   return router;
 };

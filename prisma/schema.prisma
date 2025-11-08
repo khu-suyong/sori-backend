@@ -8,14 +8,15 @@ datasource db {
 }
 
 model User {
-  id    String @id @default(cuid(2))
-  email String @unique
-  name  String
-  image String?
-  createdAt DateTime @default(now())
+  id        String    @id @default(cuid(2))
+  email     String    @unique
+  name      String
+  image     String?
+  createdAt DateTime  @default(now())
   updatedAt DateTime?
 
-  accounts Account[]
+  accounts   Account[]
+  workspaces Workspace[]
 }
 
 model Account {
@@ -24,11 +25,64 @@ model Account {
   provider          String
   providerAccountId String
 
-  accessToken       String?
-  refreshToken      String?
-  expiresAt         Int?
-  scope             String?
+  accessToken  String?
+  refreshToken String?
+  expiresAt    Int?
+  scope        String?
 
   user User @relation(fields: [userId], references: [id])
+
   @@unique([provider, providerAccountId])
+}
+
+model Workspace {
+  id     String @id @default(cuid(2))
+  userId String
+
+  name  String
+  image String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+
+  notes   Note[]
+  folders Folder[]
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, name])
+}
+
+model Note {
+  id          String @id @default(cuid(2))
+  folderId    String
+  workspaceId String
+
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+
+  folder    Folder    @relation(fields: [folderId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([folderId, name])
+  @@index([folderId])
+}
+
+model Folder {
+  id          String  @id @default(cuid(2))
+  workspaceId String
+  parentId    String?
+
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+
+  notes     Note[]
+  children  Folder[]  @relation("SubFolder")
+  parent    Folder?   @relation("SubFolder", fields: [parentId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([parentId, name])
+  @@index([parentId])
 }
