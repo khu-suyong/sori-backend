@@ -32,7 +32,6 @@ export const updateUser = async (db: PrismaClient, id: FetchIdOptions, input: Ed
       },
       data: {
         name: input.name,
-        email: input.email,
         image: input.image,
       },
     });

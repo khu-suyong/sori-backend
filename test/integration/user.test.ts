@@ -1,21 +1,29 @@
-import { describe, expect, it } from 'vitest';
-
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient, User as PrismaUser } from '@prisma/client';
 
 import { app } from '../../src/app';
-import { prismaMock } from '../mocks/db';
+import { getTestPrisma } from '../mocks/db';
 import { generateToken } from '../../src/modules/auth/auth.service';
 import { fetchUser, putUser } from '../../src/modules/user/user.service';
 
 const readJson = async <T>(res: Response) => res.json() as Promise<T>;
-const makePrismaUser = (overrides: Partial<PrismaUser> = {}): PrismaUser => ({
-  id: 'user-id',
-  email: 'user@example.com',
-  name: 'User',
-  image: null,
-  createdAt: new Date('2024-01-01T00:00:00.000Z'),
-  updatedAt: null,
-  ...overrides,
+const makeId = (seed: number) => `a${seed.toString().padStart(23, '0')}`;
+
+let prisma: PrismaClient;
+beforeAll(() => {
+  prisma = getTestPrisma();
+});
+
+let userSeed = 1;
+const nextUserId = () => makeId(userSeed++);
+
+const createUser = (overrides: Partial<PrismaUser> = {}) => prisma.user.create({
+  data: {
+    id: overrides.id ?? nextUserId(),
+    email: overrides.email ?? `user-${userSeed}@example.com`,
+    name: overrides.name ?? 'User',
+    image: overrides.image ?? null,
+  },
 });
 
 describe('user.route.ts', () => {
@@ -38,8 +46,7 @@ describe('user.route.ts', () => {
   });
 
   it('returns 404 when the user does not exist', async () => {
-    const { accessToken } = await generateToken('missing-user');
-    prismaMock.user.findUnique.mockResolvedValueOnce(null);
+    const { accessToken } = await generateToken(makeId(999));
 
     const res = await app.request(path, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -50,13 +57,13 @@ describe('user.route.ts', () => {
   });
 
   it('returns a sanitized user payload for valid requests', async () => {
-    prismaMock.user.findUnique.mockResolvedValueOnce(makePrismaUser({
-      id: 'user-id',
+    const user = await createUser({
+      id: makeId(1),
       name: 'Existing User',
       email: 'existing@example.com',
       image: null,
-    }));
-    const { accessToken } = await generateToken('user-id');
+    });
+    const { accessToken } = await generateToken(user.id);
 
     const res = await app.request(path, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -64,60 +71,43 @@ describe('user.route.ts', () => {
 
     expect(res.status).toBe(200);
     await expect(readJson(res)).resolves.toStrictEqual({
-      id: 'user-id',
-      name: 'Existing User',
-      email: 'existing@example.com',
-      image: null,
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
     });
   });
 });
 
 describe('user.service.ts', () => {
-  it('fetchUser delegates to prisma with expected filters', async () => {
-    prismaMock.user.findUnique.mockResolvedValueOnce(makePrismaUser({
-      id: 'user-id',
+  it('fetchUser returns the user when filters match', async () => {
+    const user = await createUser({
+      id: makeId(10),
       name: 'Test',
       email: 'foo@example.com',
-      image: null,
-    }));
-
-    const result = await fetchUser(prismaMock, { id: 'user-id' });
-
-    expect(result?.id).toBe('user-id');
-    expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-      where: {
-        id: 'user-id',
-        email: undefined,
-        accounts: undefined,
-      },
     });
+
+    const result = await fetchUser(prisma, { id: user.id });
+
+    expect(result?.id).toBe(user.id);
+    expect(result?.email).toBe('foo@example.com');
   });
 
   it('putUser creates a user when one does not exist', async () => {
-    prismaMock.user.findUnique.mockResolvedValueOnce(null);
-    prismaMock.user.findUnique.mockResolvedValueOnce(null);
-    const createdUser = makePrismaUser({
-      id: 'created-id',
-      name: 'Created User',
-      email: 'created@example.com',
-      image: null,
-    });
-    prismaMock.user.create.mockResolvedValueOnce(createdUser);
-
-    const result = await putUser(prismaMock as unknown as PrismaClient, {
+    const result = await putUser(prisma, {
       name: 'Created User',
       email: 'created@example.com',
       image: null,
     }, null);
 
-    expect(result).toStrictEqual(createdUser);
-    expect(prismaMock.user.create).toHaveBeenCalledWith({
-      data: {
-        name: 'Created User',
-        email: 'created@example.com',
-        image: null,
-        accounts: undefined,
-      },
+    expect(result).toMatchObject({
+      name: 'Created User',
+      email: 'created@example.com',
+      image: null,
     });
+
+    const stored = await prisma.user.findUnique({ where: { email: 'created@example.com' } });
+    expect(stored).not.toBeNull();
+    expect(stored?.name).toBe('Created User');
   });
 });

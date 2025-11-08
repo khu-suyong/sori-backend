@@ -29,6 +29,14 @@ export const WorkspaceSchema = Entity.extend({
 
 //
 
+export type CreatableWorkspace = z.infer<typeof CreatableWorkspaceSchema>;
+export const CreatableWorkspaceSchema = z.object({
+  name: z.string().min(1).max(50).openapi({ description: '워크스페이스 이름' }),
+  image: z.url().nullable().optional().openapi({ description: '워크스페이스 이미지 URL' }),
+}).openapi('CreatableWorkspace');
+
+//
+
 export type PublicNote = z.infer<typeof PublicNoteSchema>;
 export const PublicNoteSchema = NoteSchema
   .pick({ id: true, name: true })

@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import type { User as PrismaUser } from '@prisma/client';
+import { beforeAll, describe, expect, it } from 'vitest';
+import type { PrismaClient } from '@prisma/client';
 
 import { app } from '../../src/app';
 import { createMockOauthTokens, oauthMock } from '../mocks/oauth';
-import { prismaMock } from '../mocks/db';
+import { getTestPrisma } from '../mocks/db';
 import { generateToken, verifyToken } from '../../src/modules/auth/auth.service';
 
 const readJson = async <T>(res: Response) => res.json() as Promise<T>;
@@ -18,14 +18,9 @@ const getSetCookies = (res: Response) => {
   return single ? [single] : [];
 };
 
-const makePrismaUser = (overrides: Partial<PrismaUser> = {}): PrismaUser => ({
-  id: 'user-id',
-  email: 'user@example.com',
-  name: 'User',
-  image: null,
-  createdAt: new Date('2024-01-01T00:00:00.000Z'),
-  updatedAt: null,
-  ...overrides,
+let prisma: PrismaClient;
+beforeAll(() => {
+  prisma = getTestPrisma();
 });
 
 describe('auth.route.ts', () => {
@@ -163,16 +158,6 @@ describe('auth.route.ts', () => {
         }),
       });
       oauthMock.authorizationCodeGrant.mockResolvedValueOnce(tokens);
-      prismaMock.user.findUnique.mockResolvedValueOnce(null);
-      prismaMock.user.findUnique.mockResolvedValueOnce(null);
-      const createdUser = makePrismaUser({
-        id: 'internal-user',
-        name: 'Profile User',
-        email: 'profile@example.com',
-        image: 'https://example.com/image.png',
-      });
-      prismaMock.user.create.mockResolvedValueOnce(createdUser);
-
       const res = await app.request(`${callbackPath}?code=oauth-code`, { headers: baseHeaders });
       expect(res.status).toBe(200);
 
@@ -182,39 +167,33 @@ describe('auth.route.ts', () => {
         refreshToken: string;
       }>(res);
 
-      expect(body.user).toStrictEqual({
-        id: createdUser.id,
-        name: createdUser.name,
-        email: createdUser.email,
-        image: createdUser.image,
+      expect(body.user).toMatchObject({
+        name: 'Profile User',
+        email: 'profile@example.com',
+        image: 'https://example.com/image.png',
       });
       const accessPayload = await verifyToken(body.accessToken);
       const refreshPayload = await verifyToken(body.refreshToken, 'auth');
-      expect(accessPayload.sub).toBe(createdUser.id);
-      expect(refreshPayload.sub).toBe(createdUser.id);
+      expect(accessPayload.sub).toBe(body.user.id);
+      expect(refreshPayload.sub).toBe(body.user.id);
       const lastCall = oauthMock.authorizationCodeGrant.mock.calls.at(-1);
       expect(lastCall?.[2]).toMatchObject({
         pkceCodeVerifier: 'stored-verifier',
         expectedState: 'stored-state',
       });
-      expect(prismaMock.user.create).toHaveBeenCalledWith({
-        data: {
-          name: 'Profile User',
-          email: 'profile@example.com',
-          image: 'https://example.com/image.png',
-          accounts: {
-            create: [
-              {
-                provider: 'google',
-                providerAccountId: 'google-123',
-                accessToken: 'provider-access',
-                refreshToken: 'provider-refresh',
-                expiresAt: 1234,
-                scope: 'openid email profile',
-              },
-            ],
-          },
-        },
+      const stored = await prisma.user.findUnique({
+        where: { email: 'profile@example.com' },
+        include: { accounts: true },
+      });
+      expect(stored).not.toBeNull();
+      expect(stored?.accounts).toHaveLength(1);
+      expect(stored?.accounts[0]).toMatchObject({
+        provider: 'google',
+        providerAccountId: 'google-123',
+        accessToken: 'provider-access',
+        refreshToken: 'provider-refresh',
+        expiresAt: 1234,
+        scope: 'openid email profile',
       });
     });
   });

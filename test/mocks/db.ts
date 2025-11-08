@@ -1,27 +1,78 @@
+import { execSync } from 'node:child_process';
+
 import { vi } from 'vitest';
 import type { MiddlewareHandler } from 'hono';
-import { mockDeep, mockReset } from 'vitest-mock-extended';
-import type { PrismaClient } from '@prisma/client';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { PrismaClient } from '@prisma/client';
 
-export const prismaMock = mockDeep<PrismaClient>();
+let container: StartedPostgreSqlContainer | null = null;
+let prisma: PrismaClient | null = null;
 
-const applyDefaults = () => {
-  prismaMock.$transaction.mockImplementation(async (cb) => cb(prismaMock));
+const migrateDatabase = (connectionUri: string) => {
+  execSync('pnpm prisma db push --accept-data-loss', {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      DATABASE_URL: connectionUri,
+    },
+  });
 };
 
-applyDefaults();
+export const setupTestDatabase = async () => {
+  if (prisma) return prisma;
 
-export const resetPrismaMock = () => {
-  mockReset(prismaMock);
-  applyDefaults();
+  container = await new PostgreSqlContainer('postgres:16-alpine')
+    .withDatabase('sori')
+    .withUsername('postgres')
+    .withPassword('postgres')
+    .start();
+
+  const connectionUri = container.getConnectionUri();
+  process.env.DATABASE_URL = connectionUri;
+  migrateDatabase(connectionUri);
+
+  prisma = new PrismaClient({
+    datasourceUrl: connectionUri,
+  });
+  await prisma.$connect();
+
+  return prisma;
+};
+
+export const getTestPrisma = () => {
+  if (!prisma) throw new Error('Test Prisma has not been initialized. Call setupTestDatabase() first.');
+  return prisma;
+};
+
+export const resetTestDatabase = async () => {
+  const client = await setupTestDatabase();
+  const tables = ['Account', 'Note', 'Folder', 'Workspace', 'User'];
+
+  for (const table of tables) {
+    await client.$executeRawUnsafe(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE;`);
+  }
+};
+
+export const teardownTestDatabase = async () => {
+  if (prisma) {
+    await prisma.$disconnect();
+    prisma = null;
+  }
+  if (container) {
+    await container.stop();
+    container = null;
+  }
 };
 
 const attachPrisma: MiddlewareHandler = async (c, next) => {
-  c.set('prisma', prismaMock);
+  const client = await setupTestDatabase();
+  c.set('prisma', client);
   await next();
 };
 
 vi.mock('../../src/lib/db', () => ({
   db: () => attachPrisma,
-  prisma: prismaMock,
+  get prisma() {
+    return prisma;
+  },
 }));

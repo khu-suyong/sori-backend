@@ -1,4 +1,4 @@
-import { beforeEach } from 'vitest';
+import { beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 
 process.env.GOOGLE_CLIENT_ID ||= 'test-client-id';
 process.env.GOOGLE_CLIENT_SECRET ||= 'test-client-secret';
@@ -8,9 +8,21 @@ import '../mocks/oauth';
 import '../mocks/db';
 
 import { resetOauthMock } from '../mocks/oauth';
-import { resetPrismaMock } from '../mocks/db';
+import { resetTestDatabase, setupTestDatabase, teardownTestDatabase } from '../mocks/db';
 
-beforeEach(() => {
+beforeAll(async () => {
+  await setupTestDatabase();
+});
+
+beforeEach(async () => {
   resetOauthMock();
-  resetPrismaMock();
+  await resetTestDatabase();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+afterAll(async () => {
+  await teardownTestDatabase();
 });

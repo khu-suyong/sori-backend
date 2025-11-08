@@ -76,7 +76,7 @@ auth.get('/refresh', async () => {
 
 const oauthRoute = createRoute({
   method: 'get',
-  path: '/:provider_name',
+  path: '/{provider_name}',
   description: '요청한 인증 제공자의 OAuth 인증을 시작합니다.',
   tags: ['Auth'],
   summary: 'OAuth 인증 시작',
@@ -146,7 +146,7 @@ auth.openapi(
 
 const oauthCallbackRoute = createRoute({
   method: 'get',
-  path: '/:provider_name/callback',
+  path: '/{provider_name}/callback',
   description: 'OAuth 콜백을 처리하고 유저 정보와 토큰을 발급합니다.',
   tags: ['Auth'],
   summary: 'OAuth 콜백 처리',

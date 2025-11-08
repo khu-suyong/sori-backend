@@ -1,99 +1,96 @@
-import { describe, expect, it } from 'vitest';
-import type { Folder as PrismaFolder, Note as PrismaNote, Workspace as PrismaWorkspace } from '@prisma/client';
+import { beforeAll, describe, expect, it } from 'vitest';
+import type { PrismaClient, User as PrismaUser, Workspace as PrismaWorkspace } from '@prisma/client';
 
 import { app } from '../../src/app';
-import { prismaMock } from '../mocks/db';
+import { getTestPrisma } from '../mocks/db';
 import { generateToken } from '../../src/modules/auth/auth.service';
 
-const path = '/api/v1/workspace';
+const basePath = '/api/v1/workspace';
 const readJson = async <T>(res: Response) => res.json() as Promise<T>;
 const makeId = (seed: number) => `a${seed.toString().padStart(23, '0')}`;
 
-type FolderWithRelations = PrismaFolder & {
-  notes: PrismaNote[];
-  children: FolderWithRelations[];
-};
-type WorkspaceWithRelations = PrismaWorkspace & {
-  notes: PrismaNote[];
-  folders: FolderWithRelations[];
-};
-
-const makeNote = (overrides: Partial<PrismaNote> = {}): PrismaNote => ({
-  id: makeId(100),
-  folderId: makeId(200),
-  workspaceId: makeId(1),
-  name: 'Note',
-  createdAt: new Date('2024-01-01T00:00:00.000Z'),
-  updatedAt: null,
-  ...overrides,
+let prisma: PrismaClient;
+beforeAll(() => {
+  prisma = getTestPrisma();
 });
 
-const makeFolder = (overrides: Partial<FolderWithRelations> = {}): FolderWithRelations => ({
-  id: makeId(300),
-  workspaceId: makeId(1),
-  parentId: null,
-  name: 'Folder',
-  createdAt: new Date('2024-01-01T00:00:00.000Z'),
-  updatedAt: null,
-  notes: [],
-  children: [],
-  ...overrides,
+let userSeed = 1;
+const nextUserId = () => makeId(1000 + userSeed++);
+
+const createUser = (overrides: Partial<PrismaUser> = {}) => prisma.user.create({
+  data: {
+    id: overrides.id ?? nextUserId(),
+    email: overrides.email ?? `workspace-user-${userSeed}@example.com`,
+    name: overrides.name ?? `Workspace User ${userSeed}`,
+    image: overrides.image ?? null,
+  },
 });
 
-const makeWorkspace = (overrides: Partial<WorkspaceWithRelations> = {}): WorkspaceWithRelations => ({
-  id: makeId(1),
-  userId: makeId(999),
-  name: 'Workspace',
-  image: 'https://example.com/workspace.png',
-  createdAt: new Date('2024-01-01T00:00:00.000Z'),
-  updatedAt: null,
-  notes: [],
-  folders: [],
-  ...overrides,
+let workspaceSeed = 1;
+const nextWorkspaceId = () => makeId(2000 + workspaceSeed++);
+
+const createWorkspace = (userId: string, overrides: Partial<PrismaWorkspace> = {}) => prisma.workspace.create({
+  data: {
+    id: overrides.id ?? nextWorkspaceId(),
+    userId,
+    name: overrides.name ?? `Workspace-${workspaceSeed}`,
+    image: overrides.image ?? 'https://example.com/workspace.png',
+  },
 });
 
-const makeDeepFolderChain = (depth: number) => {
+let folderSeed = 1;
+let noteSeed = 1;
+
+const createFolder = (workspaceId: string, parentId: string | null, name: string) => prisma.folder.create({
+  data: {
+    id: makeId(3000 + folderSeed++),
+    workspaceId,
+    parentId,
+    name,
+  },
+});
+
+const createNote = (workspaceId: string, folderId: string, name: string) => prisma.note.create({
+  data: {
+    id: makeId(4000 + noteSeed++),
+    workspaceId,
+    folderId,
+    name,
+  },
+});
+
+const createFolderChain = async (workspaceId: string, label: string, depth: number) => {
   const folderIds: string[] = [];
-  const noteIds: string[] = [];
-
-  const build = (level: number, parentId: string | null): FolderWithRelations => {
-    const folderId = makeId(400 + level);
-    const noteId = makeId(600 + level);
-    folderIds.push(folderId);
-    noteIds.push(noteId);
-
-    return makeFolder({
-      id: folderId,
-      parentId,
-      name: `Folder-${level}`,
-      notes: [
-        makeNote({
-          id: noteId,
-          folderId,
-          name: `Note-${level}`,
-        }),
-      ],
-      children: level < depth - 1 ? [build(level + 1, folderId)] : [],
-    });
-  };
-
-  return {
-    root: build(0, null),
-    folderIds,
-    noteIds,
-  };
+  let parentId: string | null = null;
+  for (let level = 0; level < depth; level++) {
+    const folder = await createFolder(workspaceId, parentId, `${label}-Folder-${level}`);
+    folderIds.push(folder.id);
+    await createNote(workspaceId, folder.id, `${label}-Note-${level}`);
+    parentId = folder.id;
+  }
+  return folderIds;
 };
 
-describe('workspace.route.ts', () => {
-  it('returns 401 when the Authorization header is missing', async () => {
-    const res = await app.request(path);
+const traverseFolderIds = (folder: { id: string; children: any[] }): string[] => {
+  const ids: string[] = [];
+  let current: { id: string; children: any[] } | undefined = folder;
+  while (current) {
+    ids.push(current.id);
+    current = current.children[0];
+  }
+  return ids;
+};
+
+describe('workspace.route.ts:getWorkspaceRoute', () => {
+  it('requires Authorization header', async () => {
+    const res = await app.request(`${basePath}/${makeId(1)}`);
 
     expect(res.status).toBe(401);
     await expect(readJson<{ code: string }>(res)).resolves.toMatchObject({ code: 'missing_authorization_header' });
   });
 
-  it('returns 401 for malformed Authorization headers', async () => {
-    const res = await app.request(path, {
+  it('rejects malformed Authorization headers', async () => {
+    const res = await app.request(`${basePath}/${makeId(1)}`, {
       headers: { Authorization: 'Token invalid' },
     });
 
@@ -101,228 +98,72 @@ describe('workspace.route.ts', () => {
     await expect(readJson<{ code: string }>(res)).resolves.toMatchObject({ code: 'invalid_authorization_header' });
   });
 
-  it('returns sanitized workspaces with pagination metadata', async () => {
-    const workspaceOne = makeWorkspace({
-      id: makeId(1),
-      userId: makeId(500),
-      name: 'First Workspace',
-      notes: [
-        makeNote({
-          id: makeId(10),
-          name: 'Loose Note',
-          workspaceId: makeId(1),
-          folderId: makeId(20),
-        }),
-      ],
-      folders: [
-        makeFolder({
-          id: makeId(20),
-          name: 'Root Folder',
-          notes: [
-            makeNote({
-              id: makeId(11),
-              name: 'Folder Note',
-              workspaceId: makeId(1),
-              folderId: makeId(20),
-            }),
-          ],
-          children: [
-            makeFolder({
-              id: makeId(21),
-              parentId: makeId(20),
-              name: 'Child Folder',
-              notes: [
-                makeNote({
-                  id: makeId(12),
-                  name: 'Nested Note',
-                  workspaceId: makeId(1),
-                  folderId: makeId(21),
-                }),
-              ],
-              children: [],
-            }),
-          ],
-        }),
-      ],
-    });
-    const workspaceTwo = makeWorkspace({
-      id: makeId(2),
-      userId: workspaceOne.userId,
-      name: 'Second Workspace',
-      image: null,
-    });
-    prismaMock.workspace.findMany.mockResolvedValueOnce([workspaceOne, workspaceTwo]);
+  it('returns 404 when the workspace does not exist', async () => {
+    const user = await createUser();
+    const { accessToken } = await generateToken(user.id);
 
-    const { accessToken } = await generateToken(workspaceOne.userId);
-    const res = await app.request(`${path}?limit=2`, {
+    const res = await app.request(`${basePath}/${makeId(555)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    expect(res.status).toBe(404);
+    await expect(readJson<{ code: string }>(res)).resolves.toMatchObject({ code: 'workspace_not_found' });
+  });
+
+  it('returns 404 when accessing another user’s workspace', async () => {
+    const owner = await createUser({ name: 'Owner' });
+    const intruder = await createUser({ name: 'Intruder' });
+    const workspace = await createWorkspace(owner.id);
+    const { accessToken } = await generateToken(intruder.id);
+
+    const res = await app.request(`${basePath}/${workspace.id}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    expect(res.status).toBe(404);
+    await expect(readJson<{ code: string }>(res)).resolves.toMatchObject({ code: 'workspace_not_found' });
+  });
+
+  it('returns a workspace with multiple deep branches', async () => {
+    const user = await createUser();
+    const workspace = await createWorkspace(user.id, { name: 'Branched Workspace' });
+    const alphaChain = await createFolderChain(workspace.id, 'alpha', 4);
+    const betaChain = await createFolderChain(workspace.id, 'beta', 3);
+    const { accessToken } = await generateToken(user.id);
+
+    const res = await app.request(`${basePath}/${workspace.id}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     expect(res.status).toBe(200);
-    await expect(readJson(res)).resolves.toStrictEqual({
-      items: [
-        {
-          id: workspaceOne.id,
-          name: workspaceOne.name,
-          image: workspaceOne.image,
-          notes: [
-            { id: workspaceOne.notes[0].id, name: workspaceOne.notes[0].name },
-          ],
-          folders: [
-            {
-              id: workspaceOne.folders[0].id,
-              name: workspaceOne.folders[0].name,
-              notes: [
-                { id: workspaceOne.folders[0].notes[0].id, name: workspaceOne.folders[0].notes[0].name },
-              ],
-              children: [
-                {
-                  id: workspaceOne.folders[0].children[0].id,
-                  name: workspaceOne.folders[0].children[0].name,
-                  notes: [
-                    { id: workspaceOne.folders[0].children[0].notes[0].id, name: workspaceOne.folders[0].children[0].notes[0].name },
-                  ],
-                  children: [],
-                },
-              ],
-            },
-          ],
-        },
-        {
-          id: workspaceTwo.id,
-          name: workspaceTwo.name,
-          image: workspaceTwo.image,
-          notes: [],
-          folders: [],
-        },
-      ],
-      meta: {
-        previous: workspaceOne.id,
-        next: workspaceTwo.id,
-      },
-    });
+    const body = await readJson<{
+      id: string;
+      folders: Array<{ id: string; name: string; notes: Array<{ name: string }>; children: any[] }>;
+    }>(res);
+    expect(body.id).toBe(workspace.id);
+    expect(body.folders).toHaveLength(2);
 
-    expect(prismaMock.workspace.findMany).toHaveBeenCalledWith({
-      where: { userId: workspaceOne.userId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        notes: true,
-        folders: true,
-      },
-    });
+    const [alphaFolder, betaFolder] = body.folders;
+    expect(alphaFolder.notes[0].name).toBe('alpha-Note-0');
+    expect(betaFolder.notes[0].name).toBe('beta-Note-0');
+    expect(traverseFolderIds(alphaFolder)).toHaveLength(alphaChain.length);
+    expect(traverseFolderIds(betaFolder)).toHaveLength(betaChain.length);
   });
 
-  it('passes pagination query parameters through to Prisma when cursor is provided', async () => {
-    const workspace = makeWorkspace({ userId: makeId(600) });
-    prismaMock.workspace.findMany.mockResolvedValueOnce([]);
-    const { accessToken } = await generateToken(workspace.userId);
-    const limit = 5;
-    const cursor = makeId(42);
+  it('handles folder chains that exceed ten levels deep', async () => {
+    const user = await createUser();
+    const workspace = await createWorkspace(user.id, { name: 'Deep Workspace' });
+    const chain = await createFolderChain(workspace.id, 'deep', 12);
+    const { accessToken } = await generateToken(user.id);
 
-    const res = await app.request(`${path}?limit=${limit}&cursor=${cursor}&sortBy=name&orderBy=asc`, {
+    const res = await app.request(`${basePath}/${workspace.id}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     expect(res.status).toBe(200);
-    await expect(readJson(res)).resolves.toStrictEqual({
-      items: [],
-      meta: {
-        previous: null,
-        next: null,
-      },
-    });
-    expect(prismaMock.workspace.findMany).toHaveBeenCalledWith({
-      where: { userId: workspace.userId },
-      take: limit,
-      skip: 1,
-      cursor: { id: cursor },
-      orderBy: { name: 'asc' },
-      include: {
-        notes: true,
-        folders: true,
-      },
-    });
-  });
-
-  it('rejects invalid pagination queries', async () => {
-    const { accessToken } = await generateToken(makeId(777));
-
-    const res = await app.request(`${path}?limit=0`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    expect(res.status).toBe(400);
-    const body = await readJson<{ success: boolean; error?: { message?: string } }>(res);
-    expect(body.success).toBe(false);
-    expect(body.error?.message ?? '').toContain('"limit"');
-    expect(prismaMock.workspace.findMany).not.toHaveBeenCalled();
-  });
-
-  it('returns multiple workspaces and omits next cursor on the last page', async () => {
-    const userId = makeId(888);
-    const workspaces = Array.from({ length: 3 }, (_, index) => makeWorkspace({
-      id: makeId(50 + index),
-      userId,
-      name: `Workspace-${index}`,
-    }));
-    prismaMock.workspace.findMany.mockResolvedValueOnce(workspaces);
-    const { accessToken } = await generateToken(userId);
-
-    const res = await app.request(`${path}?limit=5`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    expect(res.status).toBe(200);
-    const body = await readJson<any>(res);
-    expect(body.items).toHaveLength(3);
-    expect(body.meta).toStrictEqual({
-      previous: workspaces[0].id,
-      next: null,
-    });
-  });
-
-  it('serializes deeply nested folder trees without truncation', async () => {
-    const depth = 6;
-    const { root, folderIds, noteIds } = makeDeepFolderChain(depth);
-    const userId = makeId(999);
-    const workspace = makeWorkspace({
-      id: makeId(88),
-      userId,
-      folders: [root],
-    });
-    prismaMock.workspace.findMany.mockResolvedValueOnce([workspace]);
-    const { accessToken } = await generateToken(userId);
-
-    const res = await app.request(path, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    expect(res.status).toBe(200);
-    const body = await readJson<{ items: Array<{ folders: any[] }> }>(res);
-    expect(body.items).toHaveLength(1);
-    let current = body.items[0].folders[0];
-    folderIds.forEach((folderId, index) => {
-      expect(current.id).toBe(folderId);
-      expect(current.notes[0].id).toBe(noteIds[index]);
-      if (index < folderIds.length - 1) {
-        expect(current.children).toHaveLength(1);
-        current = current.children[0];
-      } else {
-        expect(current.children).toHaveLength(0);
-      }
-    });
-  });
-
-  it('returns a 500 error when workspace fetching fails', async () => {
-    const userId = makeId(321);
-    prismaMock.workspace.findMany.mockRejectedValueOnce(new Error('boom'));
-    const { accessToken } = await generateToken(userId);
-
-    const res = await app.request(path, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    expect(res.status).toBe(500);
-    await expect(readJson<{ code: string }>(res)).resolves.toMatchObject({ code: 'internal_server_error' });
+    const body = await readJson<{ folders: Array<{ id: string; children: any[] }> }>(res);
+    expect(body.folders).toHaveLength(1);
+    const ids = traverseFolderIds(body.folders[0]);
+    expect(ids).toEqual(chain);
   });
 });

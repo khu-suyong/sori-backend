@@ -44,6 +44,7 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'RefreshToken', {
 app.get('/swagger', swaggerUI({ url: '/docs' }));
 
 app.onError((err, c) => {
+  c.var.log.error('Unhandled error: %o', { err });
   if (err instanceof HTTPException) return err.getResponse();
   if (err instanceof ZodError) return c.json({ error: 'validation_failed', issues: err.issues }, 422);
 
