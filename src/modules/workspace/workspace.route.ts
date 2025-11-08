@@ -7,6 +7,7 @@ import { toPublicWorkspace } from './workspace.mapper';
 import { ID, PaginationQuerySchema, PaginationSchema } from '../common/common.schema';
 import { jwt } from '../../lib/jwt';
 import { jsonError } from '../../lib/exception';
+import { folder } from './folder/folder.route';
 
 const workspace = new OpenAPIHono();
 workspace.use('*', jwt());
@@ -143,5 +144,7 @@ workspace.openapi(getWorkspaceRoute, async (c) => {
 
   return c.json(toPublicWorkspace(workspace), 200);
 });
+
+workspace.route('/:workspace_id/folder', folder);
 
 export { workspace };

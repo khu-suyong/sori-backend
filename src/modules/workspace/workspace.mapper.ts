@@ -1,30 +1,8 @@
 import type { Folder as PrismaFolder, Note as PrismaNote, Workspace as PrismaWorkspace } from '@prisma/client';
-import { type Folder, type Note, type Workspace, type PublicFolder, type PublicNote, type PublicWorkspace, FolderSchema } from './workspace.schema';
 
-export const toPublicNote = (note: Note | PrismaNote): PublicNote => {
-  return {
-    id: note.id,
-    name: note.name,
-  };
-};
-export const toPublicFolder = (folder: Folder | PrismaFolder): PublicFolder => {
-  const parsedFolder = FolderSchema.safeParse(folder);
-  if (!parsedFolder.success) {
-    return {
-      id: folder.id,
-      name: folder.name,
-      notes: [],
-      children: [],
-    };
-  }
-
-  return {
-    id: parsedFolder.data.id,
-    name: parsedFolder.data.name,
-    notes: parsedFolder.data.notes.map(toPublicNote),
-    children: parsedFolder.data.children.map(toPublicFolder),
-  };
-}
+import type { PublicWorkspace, Workspace } from './workspace.schema';
+import { toPublicFolder } from './folder/folder.mapper';
+import { toPublicNote } from './note/note.mapper';
 
 type PrismaWorkspaceWithRelations = PrismaWorkspace & {
   notes: PrismaNote[];
