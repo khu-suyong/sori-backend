@@ -1,8 +1,8 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
-import type { CreatableFolder } from './folder.schema';
+import type { CreatableFolder, EditableFolder } from './folder.schema';
 
-export const checkPermission = async (
+export const checkFolderPermission = async (
   prisma: Prisma.TransactionClient,
   userId: string,
   workspaceId: string,
@@ -33,7 +33,7 @@ export const createFolder = async (
   input: CreatableFolder,
 ) => {
   return prisma.$transaction(async (tx) => {
-    const canAccess = await checkPermission(tx, userId, workspaceId);
+    const canAccess = await checkFolderPermission(tx, userId, workspaceId);
     if (!canAccess) return 'NoPermission';
 
     return tx.folder.create({
@@ -65,13 +65,13 @@ type UpdateFolderId = {
 export const updateFolder = async (
   prisma: PrismaClient,
   { userId, workspaceId, folderId }: UpdateFolderId,
-  input: Partial<CreatableFolder>,
+  input: Partial<EditableFolder>,
 ) => {
   return prisma.$transaction(async (tx) => {
     const folder = await fetchFolder(tx, folderId);
     if (!folder) return 'NotFound';
 
-    const canAccess = await checkPermission(prisma, userId, workspaceId, folderId);
+    const canAccess = await checkFolderPermission(prisma, userId, workspaceId, folderId);
     if (!canAccess) return 'NoPermission';
 
     return tx.folder.update({
@@ -93,7 +93,7 @@ export const deleteFolder = async (
     const folder = await fetchFolder(tx, folderId);
     if (!folder) return 'NotFound';
 
-    const canAccess = await checkPermission(tx, userId, workspaceId, folderId);
+    const canAccess = await checkFolderPermission(tx, userId, workspaceId, folderId);
     if (!canAccess) return 'NoPermission';
 
     return tx.folder.deleteMany({

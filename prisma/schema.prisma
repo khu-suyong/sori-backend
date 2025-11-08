@@ -55,14 +55,14 @@ model Workspace {
 
 model Note {
   id          String @id @default(cuid(2))
-  folderId    String
+  folderId    String?
   workspaceId String
 
   name      String
   createdAt DateTime  @default(now())
   updatedAt DateTime?
 
-  folder    Folder    @relation(fields: [folderId], references: [id])
+  folder    Folder?   @relation(fields: [folderId], references: [id])
   workspace Workspace @relation(fields: [workspaceId], references: [id])
 
   @@unique([folderId, name])

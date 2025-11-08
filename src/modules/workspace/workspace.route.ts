@@ -8,6 +8,7 @@ import { ID, PaginationQuerySchema, PaginationSchema } from '../common/common.sc
 import { jwt } from '../../lib/jwt';
 import { jsonError } from '../../lib/exception';
 import { folder } from './folder/folder.route';
+import { note } from './note/note.route';
 
 const workspace = new OpenAPIHono();
 workspace.use('*', jwt());
@@ -146,5 +147,6 @@ workspace.openapi(getWorkspaceRoute, async (c) => {
 });
 
 workspace.route('/:workspace_id/folder', folder);
+workspace.route('/:workspace_id/note', note);
 
 export { workspace };

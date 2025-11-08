@@ -52,25 +52,12 @@ folder.openapi(createFolderRoute, async (c) => {
     c.var.prisma,
     { userId, workspaceId: workspace_id },
     body,
-  ).catch((err: Error | string) => err);
+  );
 
-  if (typeof folder === 'string') {
-    if (folder === 'NoPermission') {
-      throw jsonError(403, {
-        code: 'no_permission',
-        message: '해당 워크스페이스에 대한 권한이 없습니다.',
-      });
-    }
-
-    throw jsonError(500, {
-      code: 'internal_server_error',
-      message: '서버에서 알 수 없는 오류가 발생했습니다.',
-    });
-  }
-  if (folder instanceof Error || !folder) {
-    throw jsonError(400, {
-      code: 'folder_creation_failed',
-      message: '폴더 생성에 실패했습니다.',
+  if (folder === 'NoPermission') {
+    throw jsonError(403, {
+      code: 'no_permission',
+      message: '해당 워크스페이스에 대한 권한이 없습니다.',
     });
   }
 
