@@ -6,7 +6,7 @@ import { CreatableNoteSchema, PublicNoteSchema } from './note.schema';
 
 import { ID } from '../../common/common.schema';
 import { jsonError } from '../../../lib/exception';
-import { Public } from '@prisma/client/runtime/library';
+import { upgradeWebSocket } from '../../../lib/ws';
 
 const note = new OpenAPIHono();
 
@@ -175,4 +175,33 @@ note.openapi(deleteNoteRoute, async (c) => {
   return c.body(null, 204);
 });
 
+const transcribeRoute = createRoute({
+  method: 'get',
+  path: '/{note_id}/transcribe',
+  description: '해당 노트에 음성 필기를 합니다. (WebSocket으로 업그레이드됨)',
+  tags: ['Workspace'],
+  summary: '음성 필기',
+  responses: {
+    101: {
+      description: 'WebSocket 프로토콜로 업그레이드됨.',
+    },
+  },
+  security: [
+    {
+      AccessToken: [],
+    },
+  ],
+});
+note.openapi(transcribeRoute, (_, next) => next() as any);
+note.get('/:note_id/transcribe', upgradeWebSocket(() => {
+  return {
+    onMessage(event, ws) {
+      console.log(`Message from client: ${event.data}`);
+      ws.send('Hello from server!');
+    },
+    onClose: () => {
+      console.log('Connection closed');
+    },
+  };
+}));
 export { note };
