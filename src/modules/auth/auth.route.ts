@@ -81,6 +81,9 @@ const oauthRoute = createRoute({
   tags: ['Auth'],
   summary: 'OAuth 인증 시작',
   request: {
+    query: z.object({
+      redirect: z.url(),
+    }),
     params: z.object({
       'provider_name': z.enum(['google']),
     }),
@@ -103,6 +106,7 @@ auth.openapi(
   oauthRoute,
   async (c) => {
     const { provider_name } = c.req.param();
+    const { redirect } = c.req.query();
 
     const provider = Providers[provider_name];
     if (!provider) {
@@ -115,6 +119,7 @@ auth.openapi(
     const verifier = randomPKCECodeVerifier();
     const challenge = await calculatePKCECodeChallenge(verifier);
     const state = randomState();
+    const stateBody = `state=${state}&redirect=${encodeURIComponent(redirect)}`;
 
     setCookie(c, 'oauth_code_verifier', verifier, {
       httpOnly: true,
@@ -122,7 +127,7 @@ auth.openapi(
       sameSite: 'lax',
       maxAge: 600, // 10분
     });
-    setCookie(c, 'oauth_state', state, {
+    setCookie(c, 'oauth_state', stateBody, {
       httpOnly: true,
       path: '/',
       sameSite: 'lax',
@@ -156,13 +161,8 @@ const oauthCallbackRoute = createRoute({
     }),
   },
   responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: PublicTokenWithUserSchema,
-        },
-      },
-      description: '인증된 유저와 발급된 액세스/리프레시 토큰.',
+    302: {
+      description: '인증된 유저 아이디와 발급된 액세스/리프레시 토큰을 가지고 리디렉션합니다.',
     },
     400: {
       content: {
@@ -197,14 +197,23 @@ auth.openapi(
 
     const currentUrl = new URL(c.req.url);
 
-    const state = getCookie(c, 'oauth_state') ?? '';
+    const stateBody = getCookie(c, 'oauth_state') ?? '';
     const verifier = getCookie(c, 'oauth_code_verifier') ?? '';
-    if (!currentUrl.searchParams.get('code') || !state) {
+    if (!currentUrl.searchParams.get('code') || !stateBody) {
       throw jsonError(400, {
         code: 'invalid_oauth_request',
         message: '잘못된 요청입니다.',
       });
     }
+
+    const parsed = stateBody.match(/state=([^&]*)&redirect=(.+)$/);
+    if (!parsed) {
+      throw jsonError(400, {
+        code: 'invalid_oauth_state',
+        message: '잘못된 상태 값입니다.',
+      });
+    }
+    const [, state, redirect] = parsed;
 
     const tokens = await provider.authorizationCodeGrant(currentUrl, verifier, state);
     const parsedTokens = await OauthTokensSchema.spa(tokens);
@@ -250,7 +259,22 @@ auth.openapi(
     );
     const { accessToken, refreshToken } = await generateToken(user.id);
 
-    return c.json({ user: toPublicUser(user), accessToken, refreshToken }, 200);
+    try {
+      const baseUrl = decodeURIComponent(redirect);
+      const url = new URL(baseUrl);
+      url.searchParams.set('accessToken', accessToken);
+      url.searchParams.set('refreshToken', refreshToken);
+      url.searchParams.set('userId', user.id);
+
+      return c.redirect(url.href);
+    } catch (err) {
+      c.var.log.debug('Redirect URL 처리 중 오류 발생');
+      throw jsonError(400, {
+        code: 'invalid_redirect_url',
+        message: '리디렉션 URL 처리 중 오류가 발생했습니다.',
+        cause: err instanceof Error ? err : undefined,
+      });
+    }
   },
   (result) => {
     if (!result.success) {
