@@ -17,6 +17,7 @@ model User {
 
   accounts   Account[]
   workspaces Workspace[]
+  servers    Server[]
 }
 
 model Account {
@@ -54,7 +55,7 @@ model Workspace {
 }
 
 model Note {
-  id          String @id @default(cuid(2))
+  id          String  @id @default(cuid(2))
   folderId    String?
   workspaceId String
 
@@ -85,4 +86,19 @@ model Folder {
 
   @@unique([parentId, name])
   @@index([parentId])
+}
+
+model Server {
+  id     String @id @default(cuid(2))
+  userId String
+
+  name   String
+  url    String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, name])
 }
