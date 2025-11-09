@@ -46,7 +46,7 @@ export const getTestPrisma = () => {
 
 export const resetTestDatabase = async () => {
   const client = await setupTestDatabase();
-  const tables = ['Account', 'Note', 'Folder', 'Workspace', 'User'];
+  const tables = ['Account', 'Note', 'Folder', 'Workspace', 'Server', 'User'];
 
   for (const table of tables) {
     await client.$executeRawUnsafe(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE;`);

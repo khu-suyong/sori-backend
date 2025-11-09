@@ -12,7 +12,7 @@ import { resetTestDatabase, setupTestDatabase, teardownTestDatabase } from '../m
 
 beforeAll(async () => {
   await setupTestDatabase();
-});
+}, 60000);
 
 beforeEach(async () => {
   resetOauthMock();
